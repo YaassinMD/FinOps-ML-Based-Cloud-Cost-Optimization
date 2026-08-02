@@ -1,0 +1,12 @@
+provider,vm_type,vcpu,ram_gb,price_per_hour
+AWS,t3.medium,2,4,0.0416
+AWS,t3.xlarge,4,8,0.1664
+AWS,c5.2xlarge,8,16,0.3400
+AWS,c5.4xlarge,16,32,0.6800
+Azure,B2s,2,4,0.0500
+Azure,D2s_v3,2,8,0.0960
+Azure,D4s_v3,4,16,0.1920
+Azure,D8s_v3,8,32,0.3840
+GCP,e2-medium,2,4,0.0330
+GCP,n2-standard-4,4,16,0.1940
+GCP,n2-standard-8,8,32,0.3880
