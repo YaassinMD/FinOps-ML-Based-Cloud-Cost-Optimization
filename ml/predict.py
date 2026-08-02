@@ -2,7 +2,7 @@ import pandas as pd
 import joblib
 
 import os
-
+from preprocess import preprocess_input
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Load model and feature columns only once
@@ -16,25 +16,21 @@ feature_columns = joblib.load(os.path.join(BASE_DIR, "..", "models", "model_feat
 vm_catalog = pd.read_csv(
     os.path.join(BASE_DIR, "vm_catalog.csv")
 )
-def recommend_vm(provider, predicted_vcpu, predicted_ram):
+def recommend_vm(predicted_vcpu, predicted_ram):
 
-    provider_vms = vm_catalog[
-        vm_catalog["provider"] == provider
-    ]
-
-    suitable = provider_vms[
-        (provider_vms["vcpu"] >= predicted_vcpu) &
-        (provider_vms["ram_gb"] >= predicted_ram)
+    suitable = vm_catalog[
+        (vm_catalog["vcpu"] >= predicted_vcpu) &
+        (vm_catalog["ram_gb"] >= predicted_ram)
     ]
 
     if suitable.empty:
         return None
 
-    best = suitable.sort_values(
-        by=["vcpu","ram_gb"]
-    ).iloc[0]
+    # Choose the cheapest suitable VM
+    best = suitable.sort_values("price_per_hour").iloc[0]
 
     return (
+        str(best["provider"]),
         str(best["vm_type"]),
         float(best["price_per_hour"])
     )
@@ -73,8 +69,8 @@ def predict_resources(
     concurrent_users,
     storage_required_gb,
     deployment_region,
-    traffic_pattern,
-    cloud_provider
+    traffic_pattern
+    
 ):
     
 
@@ -89,7 +85,7 @@ def predict_resources(
     }])
 
     # One-hot encode
-    from preprocess import preprocess_input
+    
 
     input_df = preprocess_input(
         input_df,
@@ -103,7 +99,10 @@ def predict_resources(
     predicted_ram = max(1, int(round(prediction[0][1])))
 
     # Recommend VM
-    vm_type, price_per_hour = recommend_vm(cloud_provider, predicted_vcpu, predicted_ram)
+    cloud_provider, vm_type, price_per_hour = recommend_vm(
+        predicted_vcpu,
+        predicted_ram
+    )
 
     monthly_cost = float(round(price_per_hour * 24 * 30, 2))
     yearly_cost = float(round(monthly_cost * 12, 2))
@@ -129,7 +128,7 @@ if __name__ == "__main__":
         storage_required_gb=20,
         deployment_region="ap-south-1",
         traffic_pattern="Low",
-        cloud_provider="AWS"
+        
      )
 
     print(result)
