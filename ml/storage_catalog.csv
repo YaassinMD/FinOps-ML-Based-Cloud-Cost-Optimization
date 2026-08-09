@@ -1,0 +1,7 @@
+provider,storage_type,price_per_gb_month
+AWS,gp3,0.08
+AWS,io2,0.125
+Azure,StandardSSD,0.075
+Azure,PremiumSSD,0.12
+GCP,pd-balanced,0.10
+GCP,pd-ssd,0.17

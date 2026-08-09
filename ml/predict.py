@@ -16,24 +16,79 @@ feature_columns = joblib.load(os.path.join(BASE_DIR, "..", "models", "model_feat
 vm_catalog = pd.read_csv(
     os.path.join(BASE_DIR, "vm_catalog.csv")
 )
-def recommend_vm(predicted_vcpu, predicted_ram):
+storage_catalog = pd.read_csv(
+    os.path.join(BASE_DIR, "storage_catalog.csv")
+)
+region_pricing = pd.read_csv(
+    os.path.join(BASE_DIR, "region_pricing.csv")
+)
+def recommend_vm(predicted_vcpu, predicted_ram, deployment_region):
 
-    suitable = vm_catalog[
-        (vm_catalog["vcpu"] >= predicted_vcpu) &
-        (vm_catalog["ram_gb"] >= predicted_ram)
+    # Filter VMs available in the requested region
+    regional_vms = vm_catalog[
+        vm_catalog["region"] == deployment_region
     ]
+
+    if regional_vms.empty:
+        return None
+
+    # Filter VMs that satisfy the predicted requirements
+    suitable = regional_vms[
+        (regional_vms["vcpu"] >= predicted_vcpu) &
+        (regional_vms["ram_gb"] >= predicted_ram)
+    ].copy()
 
     if suitable.empty:
         return None
 
-    # Choose the cheapest suitable VM
-    best = suitable.sort_values("price_per_hour").iloc[0]
+    # Get the regional price multiplier
+    region_data = region_pricing[
+        region_pricing["region"] == deployment_region
+    ]
+
+    if region_data.empty:
+        return None
+
+    multiplier = float(region_data.iloc[0]["price_multiplier"])
+
+    # Calculate region-adjusted hourly price
+    suitable["regional_price_per_hour"] = (
+        suitable["price_per_hour"] * multiplier
+    )
+
+    # Choose cheapest VM after regional pricing
+    best = suitable.sort_values(
+        "regional_price_per_hour"
+    ).iloc[0]
 
     return (
         str(best["provider"]),
         str(best["vm_type"]),
-        float(best["price_per_hour"])
+        float(best["regional_price_per_hour"])
     )
+def calculate_storage_cost(provider, storage_required_gb):
+    suitable_storage = storage_catalog[
+        storage_catalog["provider"] == provider
+    ]
+
+    if suitable_storage.empty:
+        return None, None
+
+    suitable_storage = suitable_storage.copy()
+
+    suitable_storage["storage_cost"] = (
+        suitable_storage["price_per_gb_month"] *
+        storage_required_gb
+    )
+
+    best_storage = suitable_storage.sort_values(
+        "storage_cost"
+    ).iloc[0]
+
+    storage_type = str(best_storage["storage_type"])
+    storage_cost = float(round(best_storage["storage_cost"], 2))
+
+    return storage_type, storage_cost    
 # def recommend_vm(vcpu, ram):
 #     if vcpu <= 2 and ram <= 4:
 #         return "AWS t3.medium", 0.0416
@@ -101,15 +156,26 @@ def predict_resources(
     # Recommend VM
     cloud_provider, vm_type, price_per_hour = recommend_vm(
         predicted_vcpu,
-        predicted_ram
+        predicted_ram,
+        deployment_region
     )
 
-    # Standard cloud storage rate (e.g. SSD storage at $0.10 per GB per month)
-    STORAGE_PRICE_PER_GB_MONTH = 0.10
-    storage_monthly_cost = storage_required_gb * STORAGE_PRICE_PER_GB_MONTH
+    storage_type, storage_cost = calculate_storage_cost(
+        cloud_provider,
+        storage_required_gb
+    )
 
-    monthly_cost = float(round((price_per_hour * 24 * 30) + storage_monthly_cost, 2))
-    yearly_cost = float(round(monthly_cost * 12, 2))
+    compute_monthly_cost = float(
+        round(price_per_hour * 24 * 30, 2)
+    )
+
+    total_monthly_cost = float(
+        round(compute_monthly_cost + storage_cost, 2)
+    )
+
+    yearly_cost = float(
+        round(total_monthly_cost * 12, 2)
+    )
 
     return {
         "Predicted vCPU": predicted_vcpu,
@@ -117,7 +183,10 @@ def predict_resources(
         "cloud_provider": cloud_provider,
         "Recommended VM": vm_type,
         "Price per Hour ($)": price_per_hour,
-        "Monthly Cost ($)": monthly_cost,
+        "Storage Type": storage_type,
+        "Compute Monthly Cost ($)": compute_monthly_cost,
+        "Storage Monthly Cost ($)": storage_cost,
+        "Total Monthly Cost ($)": total_monthly_cost,
         "Yearly Cost ($)": yearly_cost
     }
 # comment this main before integrating wit fastapi
@@ -126,12 +195,12 @@ if __name__ == "__main__":
     # print("Program Started")
 
     result = predict_resources(
-        application_type="Blog",
-        expected_users_per_day=1000,
-        concurrent_users=30,
-        storage_required_gb=20,
-        deployment_region="ap-south-1",
-        traffic_pattern="Low",
+        application_type="E-commerce",
+        expected_users_per_day=10000,
+        concurrent_users=250,
+        storage_required_gb=37,
+        deployment_region="europe-west",
+        traffic_pattern="medium"
         
      )
 
