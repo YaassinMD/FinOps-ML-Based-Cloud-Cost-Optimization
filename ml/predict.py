@@ -104,7 +104,11 @@ def predict_resources(
         predicted_ram
     )
 
-    monthly_cost = float(round(price_per_hour * 24 * 30, 2))
+    # Standard cloud storage rate (e.g. SSD storage at $0.10 per GB per month)
+    STORAGE_PRICE_PER_GB_MONTH = 0.10
+    storage_monthly_cost = storage_required_gb * STORAGE_PRICE_PER_GB_MONTH
+
+    monthly_cost = float(round((price_per_hour * 24 * 30) + storage_monthly_cost, 2))
     yearly_cost = float(round(monthly_cost * 12, 2))
 
     return {
