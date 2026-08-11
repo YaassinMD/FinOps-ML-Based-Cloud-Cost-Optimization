@@ -130,7 +130,7 @@ APPLICATION_TYPES = [
 REGIONS = [
     "asia-south",
     "us-east",
-    "us-west"
+    "europe-west"
 ]
 
 TRAFFIC_PATTERNS = [
